@@ -212,3 +212,37 @@ def delete_chunks_by_document(
     finally:
         if should_close:
             db.close()
+
+
+def list_chunks_by_document(
+    tenant_id: str,
+    document_id: str,
+    limit: int = 500,
+    db: Optional[Session] = None,
+) -> List[Dict[str, Any]]:
+    """List all chunks for a document scoped to tenant ordered by chunk_index."""
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+
+    try:
+        result = db.execute(
+            text("""
+                SELECT id, tenant_id, document_id, chunk_index, content, metadata, created_at
+                FROM chunks
+                WHERE tenant_id = :tenant_id AND document_id = :document_id
+                ORDER BY chunk_index ASC
+                LIMIT :limit
+            """),
+            {
+                "tenant_id": str(tenant_id),
+                "document_id": str(document_id),
+                "limit": limit,
+            },
+        )
+        return [dict(row) for row in result.mappings()]
+    finally:
+        if should_close:
+            db.close()
+

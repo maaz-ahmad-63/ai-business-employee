@@ -7,7 +7,7 @@ services:
 
     environment:
       POSTGRES_USER: ai_platform
-      POSTGRES_PASSWORD: change_this_password
+      POSTGRES_PASSWORD: [Maazahmad@123]
       POSTGRES_DB: ai_platform
 
     ports:
