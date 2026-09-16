@@ -1,8 +1,6 @@
 import React from 'react'
 import {
-  Cpu,
-  Layers,
-  Settings2,
+  Key,
   Sliders,
   Sparkles,
   X,
@@ -15,6 +13,7 @@ export interface ChatRetrievalSettings {
   collectionId: string | null
   llmProvider: string
   llmModel: string
+  apiKey?: string
 }
 
 interface RetrievalSettingsModalProps {
@@ -30,7 +29,7 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
   settings,
   onSaveSettings,
 }) => {
-  const { collections, activeTenant } = useTenant()
+  const { collections } = useTenant()
   const [tempSettings, setTempSettings] = React.useState<ChatRetrievalSettings>(settings)
 
   React.useEffect(() => {
@@ -46,16 +45,17 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 100 }}>
       <div
         className="glass-panel animate-fade-in"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '540px',
           padding: '24px',
           background: 'var(--bg-sidebar)',
           boxShadow: 'var(--shadow-md)',
+          border: '1px solid var(--border-glass-hover)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
@@ -77,7 +77,7 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>RAG Pipeline Settings</h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Configure retrieval, reranker, and LLM provider
+                Configure retrieval parameters, reranking, and synthesis model
               </p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Top K Context Chunks (Final Results)
+                Top K Context Chunks
               </label>
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)' }}>
                 {tempSettings.topK}
@@ -106,9 +106,9 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
               style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              <span>1 (Precise)</span>
+              <span>1 (Concise)</span>
               <span>5 (Recommended)</span>
-              <span>20 (Broad)</span>
+              <span>20 (Comprehensive)</span>
             </div>
           </div>
 
@@ -148,7 +148,7 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
                 Cross-Encoder Reranker (BGE-Reranker-Base)
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                Reranks top 20 RRF candidate chunks using neural attention
+                Neural attention relevance scoring on top 20 candidate chunks
               </div>
             </div>
             <input
@@ -162,20 +162,37 @@ export const RetrievalSettingsModal: React.FC<RetrievalSettingsModalProps> = ({
           {/* LLM Provider Selection */}
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-              LLM Answer Provider
+              Answer Generation Engine
             </label>
             <select
               className="input-field"
               value={tempSettings.llmProvider}
               onChange={(e) => setTempSettings({ ...tempSettings, llmProvider: e.target.value })}
             >
-              <option value="mock">Mock LLM (Fast local testing & validation)</option>
-              <option value="openai">OpenAI (GPT-4o, GPT-4o-mini)</option>
-              <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
+              <option value="mock">Local Extractive Synthesizer (Zero API Key, Instant)</option>
               <option value="gemini">Google Gemini (Gemini 1.5 Flash)</option>
-              <option value="ollama">Local Ollama (Llama 3.2, Mistral)</option>
+              <option value="openai">OpenAI (GPT-4o-mini / GPT-4o)</option>
+              <option value="groq">Groq (Llama 3.3 70B - Ultra Fast)</option>
+              <option value="ollama">Local Ollama (Llama 3.2 on localhost:11434)</option>
+              <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
             </select>
           </div>
+
+          {/* Optional API Key Input if external provider */}
+          {tempSettings.llmProvider !== 'mock' && tempSettings.llmProvider !== 'ollama' && (
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                <Key size={14} /> Optional API Key (leave empty if set in backend .env)
+              </label>
+              <input
+                type="password"
+                className="input-field"
+                placeholder={`Enter your ${tempSettings.llmProvider.toUpperCase()} API key...`}
+                value={tempSettings.apiKey || ''}
+                onChange={(e) => setTempSettings({ ...tempSettings, apiKey: e.target.value })}
+              />
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>
