@@ -20,12 +20,13 @@ def ingest_text_document(request: IngestTextRequest):
     t_start = time.perf_counter()
 
     try:
+        col_id = request.collection_id.strip() if (request.collection_id and request.collection_id.strip()) else None
         res = ingestion_service.ingest_text(
             tenant_id=request.tenant_id,
             text_content=request.text,
             filename=request.filename,
             source=request.source,
-            collection_id=request.collection_id,
+            collection_id=col_id,
             metadata=request.metadata,
             chunk_size=request.chunk_size,
             chunk_overlap=request.chunk_overlap,
@@ -74,13 +75,14 @@ async def ingest_file_document(
             except Exception:
                 parsed_metadata = {"raw_metadata": metadata}
 
+        col_id = collection_id.strip() if (collection_id and collection_id.strip()) else None
         res = ingestion_service.ingest_bytes(
             tenant_id=tenant_id,
             data=content,
             filename=file.filename or "uploaded_file",
             mime_type=file.content_type,
             source=source,
-            collection_id=collection_id,
+            collection_id=col_id,
             metadata=parsed_metadata,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,

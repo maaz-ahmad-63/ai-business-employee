@@ -13,6 +13,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('knowledge-base');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [documentCount, setDocumentCount] = useState<number>(0);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
   const { activeTenant, collections, setActiveCollectionId, refreshCollections } = useTenant();
 
   const fetchDocCount = async () => {
@@ -27,11 +28,17 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchDocCount();
-  }, [activeTenant?.id]);
+  }, [activeTenant?.id, refreshKey]);
 
   const handleSelectCollection = (colId: string) => {
     setActiveCollectionId(colId);
     setActiveTab('knowledge-base');
+  };
+
+  const handleUploadSuccess = () => {
+    setRefreshKey(Date.now());
+    fetchDocCount();
+    refreshCollections();
   };
 
   return (
@@ -53,8 +60,7 @@ export const App: React.FC = () => {
           {activeTab === 'knowledge-base' && (
             <KnowledgeBaseView
               onOpenUpload={() => setIsUploadModalOpen(true)}
-              isUploadOpen={isUploadModalOpen}
-              onCloseUpload={() => setIsUploadModalOpen(false)}
+              refreshKey={refreshKey}
             />
           )}
           {activeTab === 'chat-studio' && (
@@ -77,10 +83,7 @@ export const App: React.FC = () => {
       <DocumentUploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={() => {
-          fetchDocCount();
-          refreshCollections();
-        }}
+        onSuccess={handleUploadSuccess}
       />
     </div>
   );

@@ -22,13 +22,11 @@ import { useTenant } from '../../context/TenantContext'
 import { DocumentItem } from '../../types/rag'
 import { CollectionModal } from './CollectionModal'
 import { DocumentDetailModal } from './DocumentDetailModal'
-import { DocumentUploadModal } from './DocumentUploadModal'
 
 export const KnowledgeBaseView: React.FC<{
   onOpenUpload: () => void
-  isUploadOpen: boolean
-  onCloseUpload: () => void
-}> = ({ onOpenUpload, isUploadOpen, onCloseUpload }) => {
+  refreshKey?: number
+}> = ({ onOpenUpload, refreshKey }) => {
   const {
     activeTenant,
     collections,
@@ -59,7 +57,7 @@ export const KnowledgeBaseView: React.FC<{
 
   useEffect(() => {
     fetchDocs()
-  }, [activeTenant, activeCollectionId])
+  }, [activeTenant, activeCollectionId, refreshKey])
 
   // Polling for processing documents
   useEffect(() => {
@@ -400,15 +398,6 @@ export const KnowledgeBaseView: React.FC<{
       )}
 
       {/* Modals */}
-      <DocumentUploadModal
-        isOpen={isUploadOpen}
-        onClose={onCloseUpload}
-        onSuccess={() => {
-          fetchDocs(true)
-          refreshCollections()
-        }}
-      />
-
       <DocumentDetailModal
         documentId={selectedDocId}
         onClose={() => setSelectedDocId(null)}

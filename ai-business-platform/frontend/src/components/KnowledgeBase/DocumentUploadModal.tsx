@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   FileText,
   Loader2,
@@ -6,6 +6,9 @@ import {
   Type,
   UploadCloud,
   X,
+  CheckCircle2,
+  AlertCircle,
+  FileCheck
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { useTenant } from '../../context/TenantContext'
@@ -22,6 +25,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
   onSuccess,
 }) => {
   const { activeTenant, collections, activeCollectionId } = useTenant()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [mode, setMode] = useState<'file' | 'text'>('file')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -40,14 +44,24 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
     e.preventDefault()
     setIsDragging(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      setSelectedFile(file)
+      setSelectedFile(e.dataTransfer.files[0])
+      setErrorMessage(null)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0])
+      setErrorMessage(null)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!activeTenant) return
+    if (!activeTenant) {
+      setErrorMessage('No active tenant selected.')
+      return
+    }
 
     setErrorMessage(null)
     setIsUploading(true)
@@ -74,17 +88,24 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
         )
       }
 
+      // Reset state and notify parent
+      setSelectedFile(null)
+      setRawText('')
+      if (fileInputRef.current) fileInputRef.current.value = ''
       onSuccess()
       onClose()
     } catch (err: any) {
+      console.error('Upload error:', err)
       setErrorMessage(err.message || 'Ingestion failed')
     } finally {
       setIsUploading(false)
     }
   }
 
+  const isSubmitDisabled = isUploading || (mode === 'file' && !selectedFile) || (mode === 'text' && !rawText.trim())
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 100 }}>
       <div
         className="glass-panel animate-fade-in"
         onClick={(e) => e.stopPropagation()}
@@ -94,6 +115,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           padding: '28px',
           background: 'var(--bg-sidebar)',
           boxShadow: 'var(--shadow-md)',
+          border: '1px solid var(--border-glass-hover)',
         }}
       >
         {/* Header */}
@@ -106,14 +128,19 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           }}
         >
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               Ingest Knowledge Document
             </h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Tenant: <strong>{activeTenant?.name}</strong>
+              Tenant: <strong style={{ color: 'var(--text-primary)' }}>{activeTenant?.name || 'Enterprise'}</strong>
             </p>
           </div>
-          <button onClick={onClose} className="btn btn-ghost" style={{ padding: '6px' }}>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="btn btn-ghost" 
+            style={{ padding: '6px' }}
+          >
             <X size={20} />
           </button>
         </div>
@@ -131,7 +158,10 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
         >
           <button
             type="button"
-            onClick={() => setMode('file')}
+            onClick={() => {
+              setMode('file')
+              setErrorMessage(null)
+            }}
             style={{
               flex: 1,
               display: 'flex',
@@ -153,7 +183,10 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setMode('text')}
+            onClick={() => {
+              setMode('text')
+              setErrorMessage(null)
+            }}
             style={{
               flex: 1,
               display: 'flex',
@@ -185,9 +218,13 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
               color: 'var(--status-danger)',
               fontSize: '0.85rem',
               marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
-            {errorMessage}
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -220,56 +257,79 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
               }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleFileDrop}
+              onClick={() => fileInputRef.current?.click()}
               style={{
-                border: `2px dashed ${isDragging ? 'var(--accent-primary)' : 'var(--border-glass-hover)'}`,
+                border: `2px dashed ${
+                  selectedFile 
+                    ? 'var(--accent-primary)' 
+                    : isDragging 
+                    ? 'var(--accent-primary)' 
+                    : 'var(--border-glass-hover)'
+                }`,
                 borderRadius: 'var(--radius-lg)',
-                padding: '36px 20px',
+                padding: '30px 20px',
                 textAlign: 'center',
-                background: isDragging ? 'var(--bg-surface-hover)' : 'var(--bg-surface)',
+                background: selectedFile 
+                  ? 'var(--bg-surface-active)' 
+                  : isDragging 
+                  ? 'var(--bg-surface-hover)' 
+                  : 'var(--bg-surface)',
                 cursor: 'pointer',
                 marginBottom: '20px',
                 transition: 'all 0.2s ease',
               }}
-              onClick={() => document.getElementById('file-upload-input')?.click()}
             >
               <input
-                id="file-upload-input"
+                ref={fileInputRef}
                 type="file"
                 accept=".pdf,.docx,.txt,.md"
                 style={{ display: 'none' }}
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setSelectedFile(e.target.files[0])
-                  }
-                }}
+                onChange={handleFileChange}
               />
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: 'var(--accent-glow)',
-                  color: 'var(--accent-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 12px auto',
-                }}
-              >
-                <UploadCloud size={26} />
-              </div>
+              
               {selectedFile ? (
-                <div>
-                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
-                    {selectedFile.name}
-                  </p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {(selectedFile.size / 1024).toFixed(1)} KB • Click or drop another to replace
-                  </p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '50%',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#10b981',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FileCheck size={24} />
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                      {selectedFile.name}
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {(selectedFile.size / 1024).toFixed(1)} KB • Click to choose a different file
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div>
-                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                  <div
+                    style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '50%',
+                      background: 'var(--accent-glow)',
+                      color: 'var(--accent-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 10px auto',
+                    }}
+                  >
+                    <UploadCloud size={24} />
+                  </div>
+                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
                     Choose a file or drag & drop here
                   </p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -300,7 +360,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
                 </label>
                 <textarea
                   className="input-field"
-                  rows={7}
+                  rows={6}
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
                   placeholder="Paste documentation, policy terms, knowledge articles..."
@@ -324,14 +384,18 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={isUploading || (mode === 'file' && !selectedFile)}
-              style={{ minWidth: '130px' }}
+              disabled={isSubmitDisabled}
+              style={{ 
+                minWidth: '130px',
+                opacity: isSubmitDisabled ? 0.6 : 1,
+                cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+              }}
             >
               {isUploading ? (
-                <>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                   <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                  Processing...
-                </>
+                  <span>Processing...</span>
+                </span>
               ) : (
                 'Start Ingestion'
               )}
