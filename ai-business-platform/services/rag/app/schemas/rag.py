@@ -51,6 +51,7 @@ class AskRequest(BaseModel):
     max_tokens: Optional[int] = Field(default=None, ge=1, le=4096)
     llm_provider: Optional[str] = Field(default=None, description="Optional provider override (openai/anthropic/gemini/ollama/mock)")
     llm_model: Optional[str] = Field(default=None, description="Optional model override")
+    api_key: Optional[str] = Field(default=None, description="Optional API key override")
 
 
 class CitationSource(BaseModel):

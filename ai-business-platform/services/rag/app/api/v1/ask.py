@@ -55,6 +55,7 @@ def ask_question(request: AskRequest):
         # 3. Obtain LLM Provider
         llm = get_llm_provider(
             provider_name=request.llm_provider,
+            api_key=request.api_key,
             model=request.llm_model,
         )
 

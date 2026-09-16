@@ -53,6 +53,7 @@ class SendMessageRequest(BaseModel):
     top_k: int = 5
     llm_provider: Optional[str] = None
     llm_model: Optional[str] = None
+    api_key: Optional[str] = None
 
 
 class SendMessageResponse(BaseModel):
@@ -68,16 +69,16 @@ def get_conversations(
 ):
     """List conversation threads for a tenant."""
     try:
-        convs = list_conversations(tenant_id=tenant_id, limit=limit, offset=offset)
+        threads = list_conversations(tenant_id=tenant_id, limit=limit, offset=offset)
         return [
             ConversationResponse(
-                id=str(c["id"]),
-                tenant_id=str(c["tenant_id"]),
-                title=c.get("title"),
-                created_at=c["created_at"],
-                updated_at=c["updated_at"],
+                id=str(t["id"]),
+                tenant_id=str(t["tenant_id"]),
+                title=t.get("title") or "Conversation",
+                created_at=t["created_at"],
+                updated_at=t["updated_at"],
             )
-            for c in convs
+            for t in threads
         ]
     except Exception as exc:
         logger.exception(f"Error listing conversations: {exc}")
@@ -86,30 +87,35 @@ def get_conversations(
 
 @router.post("/conversations", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 def create_new_conversation(request: CreateConversationRequest):
-    """Create a new conversation thread."""
+    """Create a new conversation session for a tenant."""
     try:
-        cid = create_conversation(tenant_id=request.tenant_id, title=request.title)
-        return ConversationResponse(
-            id=cid,
+        conv_id = create_conversation(
             tenant_id=request.tenant_id,
+            title=request.title or "New Conversation",
+        )
+        return ConversationResponse(
+            id=str(conv_id),
+            tenant_id=str(request.tenant_id),
             title=request.title or "New Conversation",
             created_at=time.time(),
             updated_at=time.time(),
         )
     except Exception as exc:
         logger.exception(f"Error creating conversation: {exc}")
-        raise HTTPException(status_code=400, detail="Failed to create conversation")
+        raise HTTPException(status_code=500, detail="Failed to create conversation")
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
 def get_messages(
     conversation_id: str,
     tenant_id: str = Query(..., description="Tenant ID"),
-    limit: int = Query(100, ge=1, le=200),
 ):
-    """Get message history for a conversation thread."""
+    """Get message history for a conversation."""
     try:
-        msgs = get_conversation_messages(tenant_id=tenant_id, conversation_id=conversation_id, limit=limit)
+        msgs = get_conversation_messages(
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+        )
         return [
             MessageResponse(
                 id=str(m["id"]),
@@ -162,6 +168,7 @@ def post_message(
         # 3. LLM synthesis
         llm = get_llm_provider(
             provider_name=request.llm_provider,
+            api_key=request.api_key,
             model=request.llm_model,
         )
 

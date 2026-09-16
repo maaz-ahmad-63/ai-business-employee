@@ -1,19 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  AlertCircle,
-  BookOpen,
   Bot,
-  Clock,
-  Cpu,
   FileText,
-  Layers,
   Loader2,
   MessageSquare,
   Plus,
   Send,
   Settings2,
   Sparkles,
-  User,
   Zap,
 } from 'lucide-react'
 import { api } from '../../api/client'
@@ -24,6 +18,152 @@ import {
   ChatRetrievalSettings,
   RetrievalSettingsModal,
 } from './RetrievalSettingsModal'
+
+// Rich Markdown and Interactive Citation Formatter
+const FormattedMessage: React.FC<{
+  content: string
+  sources: CitationSource[]
+  onCitationClick: (sourceIndex: number) => void
+}> = ({ content, sources, onCitationClick }) => {
+  const lines = content.split('\n')
+
+  const renderFormattedLine = (line: string, lineKey: number) => {
+    // 1. Heading 3 or 📌 Section
+    if (line.startsWith('### ') || line.startsWith('📌 ')) {
+      const headingText = line.replace(/^(###\s*|📌\s*)/, '')
+      return (
+        <h4
+          key={lineKey}
+          style={{
+            fontSize: '0.98rem',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            marginTop: '12px',
+            marginBottom: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          {renderInlineTokens(headingText)}
+        </h4>
+      )
+    }
+
+    // 2. Bullet point line
+    if (line.startsWith('• ') || line.startsWith('- ') || line.startsWith('* ')) {
+      const bulletText = line.replace(/^([•\-*]\s*)/, '')
+      return (
+        <div
+          key={lineKey}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            margin: '4px 0',
+            lineHeight: 1.55,
+          }}
+        >
+          <span
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: 'var(--accent-primary)',
+              marginTop: '8px',
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1 }}>{renderInlineTokens(bulletText)}</div>
+        </div>
+      )
+    }
+
+    // 3. Regular paragraph
+    if (!line.trim()) {
+      return <div key={lineKey} style={{ height: '8px' }} />
+    }
+
+    return (
+      <p key={lineKey} style={{ margin: '4px 0', lineHeight: 1.6 }}>
+        {renderInlineTokens(line)}
+      </p>
+    )
+  }
+
+  const renderInlineTokens = (text: string) => {
+    // Split by bracket citations: [Source X] or [X]
+    const tokenRegex = /(\[Source\s*\d+\]|\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*)/g
+    const parts = text.split(tokenRegex)
+
+    return parts.map((part, pIdx) => {
+      if (!part) return null
+
+      // Citation pill match
+      const sourceMatch = part.match(/\[(?:Source\s*)?(\d+)\]/)
+      if (sourceMatch) {
+        const sourceNum = parseInt(sourceMatch[1], 10)
+        // Find index in sources
+        const foundIdx = sources.findIndex((s) => s.source_id === sourceNum)
+        const targetIdx = foundIdx !== -1 ? foundIdx : sourceNum - 1
+
+        return (
+          <button
+            key={pIdx}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCitationClick(Math.max(0, targetIdx))
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              padding: '1px 6px',
+              margin: '0 3px',
+              borderRadius: '4px',
+              background: 'rgba(99, 102, 241, 0.2)',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              color: 'var(--accent-primary)',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              verticalAlign: 'baseline',
+              fontFamily: 'var(--font-mono)',
+              transition: 'all 0.15s ease',
+            }}
+            title="Click to view verified source chunk"
+          >
+            <FileText size={10} />
+            <span>[{sourceNum}]</span>
+          </button>
+        )
+      }
+
+      // Bold text match
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={pIdx} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+            {part.slice(2, -2)}
+          </strong>
+        )
+      }
+
+      // Italic text match
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return (
+          <em key={pIdx} style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+            {part.slice(1, -1)}
+          </em>
+        )
+      }
+
+      return <span key={pIdx}>{part}</span>
+    })
+  }
+
+  return <div>{lines.map((l, i) => renderFormattedLine(l, i))}</div>
+}
 
 export const RAGChatStudio: React.FC = () => {
   const { activeTenant, collections, activeCollectionId } = useTenant()
@@ -47,6 +187,7 @@ export const RAGChatStudio: React.FC = () => {
     collectionId: activeCollectionId,
     llmProvider: 'mock',
     llmModel: '',
+    apiKey: '',
   })
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -149,6 +290,7 @@ export const RAGChatStudio: React.FC = () => {
         collectionId: settings.collectionId,
         llmProvider: settings.llmProvider,
         llmModel: settings.llmModel || undefined,
+        apiKey: settings.apiKey || undefined,
       })
 
       // Replace optimistic message with actual persisted response
@@ -178,10 +320,21 @@ export const RAGChatStudio: React.FC = () => {
   }
 
   const suggestionQueries = [
-    'What are the return and refund policies?',
-    'Summarize the key capabilities of our platform.',
-    'Explain the vector indexing architecture.',
+    'What is the syllabus and theory topics for this course?',
+    'What are the course objectives and prerequisites?',
+    'Summarize the key capabilities and structure of the document.',
   ]
+
+  const activeCollectionName = collections.find((c) => c.id === settings.collectionId)?.name || 'All Documents'
+
+  const getProviderBadgeText = () => {
+    if (settings.llmProvider === 'mock') return 'Local Synthesizer'
+    if (settings.llmProvider === 'gemini') return 'Gemini 1.5'
+    if (settings.llmProvider === 'openai') return 'OpenAI'
+    if (settings.llmProvider === 'groq') return 'Groq Llama-3'
+    if (settings.llmProvider === 'ollama') return 'Ollama'
+    return settings.llmProvider
+  }
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 64px)', width: '100%', overflow: 'hidden' }}>
@@ -259,33 +412,36 @@ export const RAGChatStudio: React.FC = () => {
             background: 'var(--bg-surface)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>RAG Query Studio</span>
-            <span style={{ color: 'var(--text-muted)' }}>•</span>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-              Collection: <strong>{collections.find((c) => c.id === settings.collectionId)?.name || 'All Documents'}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              RAG Query Studio
+            </span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>•</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Collection: <strong style={{ color: 'var(--text-secondary)' }}>{activeCollectionName}</strong>
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
               style={{
-                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.72rem',
                 padding: '3px 8px',
                 borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-surface-active)',
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-glass)',
                 color: 'var(--accent-primary)',
                 fontWeight: 600,
-                fontFamily: 'var(--font-mono)',
               }}
             >
-              top_k={settings.topK} • reranker={settings.rerank ? 'ON' : 'OFF'} • llm={settings.llmProvider}
+              top_k={settings.topK} • reranker={settings.rerank ? 'ON' : 'OFF'} • engine={getProviderBadgeText()}
             </span>
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="btn btn-ghost"
               style={{ padding: '6px', borderRadius: 'var(--radius-sm)' }}
-              title="Configure Retrieval Parameters"
+              title="Configure Retrieval Parameters & LLM"
             >
               <Settings2 size={16} />
             </button>
@@ -338,7 +494,7 @@ export const RAGChatStudio: React.FC = () => {
               </div>
 
               {/* Suggestions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '420px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '460px', marginTop: '12px' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                   SUGGESTED QUERIES
                 </span>
@@ -416,11 +572,18 @@ export const RAGChatStudio: React.FC = () => {
                         border: isUser ? 'none' : '1px solid var(--border-glass)',
                         fontSize: '0.9rem',
                         lineHeight: 1.6,
-                        whiteSpace: 'pre-wrap',
                         boxShadow: 'var(--shadow-sm)',
                       }}
                     >
-                      {m.content}
+                      {isUser ? (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                      ) : (
+                        <FormattedMessage
+                          content={m.content}
+                          sources={sources}
+                          onCitationClick={(idx) => openCitationInspector(sources, idx)}
+                        />
+                      )}
                     </div>
 
                     {/* Sources & Citations Bar for Assistant Message */}
@@ -472,42 +635,25 @@ export const RAGChatStudio: React.FC = () => {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '0.7rem',
+                          gap: '10px',
+                          fontSize: '0.68rem',
                           color: 'var(--text-muted)',
                           fontFamily: 'var(--font-mono)',
+                          padding: '2px 4px',
                         }}
                       >
-                        <Zap size={11} color="var(--status-warning)" />
-                        <span>
-                          {latencies.total_ms ? `${latencies.total_ms}ms` : 'Processed'} (
-                          {latencies.embedding_ms ? `emb: ${latencies.embedding_ms}ms | ` : ''}
-                          {latencies.vector_ms ? `vec: ${latencies.vector_ms}ms | ` : ''}
-                          {latencies.fts_ms ? `fts: ${latencies.fts_ms}ms | ` : ''}
-                          {latencies.rerank_ms ? `rerank: ${latencies.rerank_ms}ms` : ''}
-                          )
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b' }}>
+                          <Zap size={11} />
+                          <span>{latencies.total_ms || 0}ms</span>
+                        </div>
+                        {latencies.embedding_ms !== undefined && <span>emb: {latencies.embedding_ms}ms</span>}
+                        {latencies.vector_ms !== undefined && <span>vec: {latencies.vector_ms}ms</span>}
+                        {latencies.fts_ms !== undefined && <span>fts: {latencies.fts_ms}ms</span>}
+                        {latencies.rerank_ms !== undefined && <span>rerank: {latencies.rerank_ms}ms</span>}
+                        {latencies.llm_ms !== undefined && <span>llm: {latencies.llm_ms}ms</span>}
                       </div>
                     )}
                   </div>
-
-                  {isUser && (
-                    <div
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-surface-active)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-primary)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <User size={18} />
-                    </div>
-                  )}
                 </div>
               )
             })
@@ -543,7 +689,7 @@ export const RAGChatStudio: React.FC = () => {
                 }}
               >
                 <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                <span>Running hybrid vector + FTS search & CrossEncoder reranking...</span>
+                <span>Searching vector space & synthesizing answer...</span>
               </div>
             </div>
           )}
@@ -551,7 +697,7 @@ export const RAGChatStudio: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Bar */}
+        {/* Bottom Input Box */}
         <div
           style={{
             padding: '16px 24px',
@@ -569,22 +715,20 @@ export const RAGChatStudio: React.FC = () => {
             <input
               type="text"
               className="input-field"
-              placeholder={`Ask any question against ${activeTenant?.name}'s knowledge base...`}
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
+              placeholder={`Ask any question against ${activeTenant?.name || 'knowledge base'}...`}
               disabled={isSending}
               style={{ flex: 1, padding: '12px 18px', fontSize: '0.9rem' }}
-              autoFocus
             />
-
             <button
               type="submit"
               className="btn btn-primary"
               disabled={isSending || !inputQuery.trim()}
-              style={{ padding: '12px 20px', minWidth: '90px' }}
+              style={{ padding: '12px 20px', fontSize: '0.9rem' }}
             >
               {isSending ? (
-                <Loader2 size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
               ) : (
                 <>
                   <Send size={16} /> Ask
@@ -595,20 +739,23 @@ export const RAGChatStudio: React.FC = () => {
         </div>
       </div>
 
-      {/* Citation Inspector Drawer */}
+      {/* Slide-over Citation Drawer */}
       <CitationDrawer
         sources={selectedCitationSources}
         selectedSourceIndex={selectedCitationIndex}
-        onClose={() => setSelectedCitationIndex(null)}
+        onClose={() => {
+          setSelectedCitationSources([])
+          setSelectedCitationIndex(null)
+        }}
         onSelectSource={(idx) => setSelectedCitationIndex(idx)}
       />
 
-      {/* Retrieval Tuning Settings Modal */}
+      {/* Retrieval Settings Modal */}
       <RetrievalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
-        onSaveSettings={(newSettings) => setSettings(newSettings)}
+        onSaveSettings={setSettings}
       />
     </div>
   )

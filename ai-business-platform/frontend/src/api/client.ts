@@ -156,6 +156,7 @@ export const api = {
       collectionId?: string | null
       llmProvider?: string | null
       llmModel?: string | null
+      apiKey?: string | null
     }
   ): Promise<AskResponse> {
     const res = await fetch(`${API_BASE}/ask`, {
@@ -168,6 +169,7 @@ export const api = {
         collection_id: options?.collectionId || null,
         llm_provider: options?.llmProvider || undefined,
         llm_model: options?.llmModel || undefined,
+        api_key: options?.apiKey || undefined,
       }),
     })
     if (!res.ok) {
@@ -217,6 +219,7 @@ export const api = {
       topK?: number
       llmProvider?: string | null
       llmModel?: string | null
+      apiKey?: string | null
     }
   ): Promise<{ user_message: ChatMessage; assistant_message: ChatMessage }> {
     const res = await fetch(
@@ -231,6 +234,7 @@ export const api = {
           top_k: options?.topK || 5,
           llm_provider: options?.llmProvider || undefined,
           llm_model: options?.llmModel || undefined,
+          api_key: options?.apiKey || undefined,
         }),
       }
     )
